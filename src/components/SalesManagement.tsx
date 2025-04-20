@@ -47,6 +47,18 @@ export default function SalesManagement({ products, setProducts, sales, setSales
     product.price.toString().includes(searchTerm)
   );
 
+  // Filtrar ventas del día actual
+  const todaySales = sales.filter(sale => {
+    const saleDate = new Date(sale.date);
+    const today = new Date();
+    return saleDate.getDate() === today.getDate() &&
+           saleDate.getMonth() === today.getMonth() &&
+           saleDate.getFullYear() === today.getFullYear();
+  });
+
+  // Calcular total de ventas del día
+  const todayTotal = todaySales.reduce((sum, sale) => sum + sale.total, 0);
+
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
     const productId = parseInt(selectedProduct);
@@ -236,7 +248,12 @@ export default function SalesManagement({ products, setProducts, sales, setSales
       )}
 
       <div className="mt-8">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Ventas Recientes</h3>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Ventas del Día</h3>
+          <span className="text-lg font-bold text-gray-900">
+            Total del día: ${todayTotal.toFixed(2)}
+          </span>
+        </div>
         <div className="table-container">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -244,11 +261,11 @@ export default function SalesManagement({ products, setProducts, sales, setSales
                 <th className="table-header">Producto</th>
                 <th className="table-header">Cantidad</th>
                 <th className="table-header">Total</th>
-                <th className="table-header">Fecha</th>
+                <th className="table-header">Hora</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {sales.slice().reverse().map((sale) => {
+              {todaySales.slice().reverse().map((sale) => {
                 const product = products.find(p => p.id === sale.productId);
                 return (
                   <tr key={sale.id}>
@@ -258,11 +275,18 @@ export default function SalesManagement({ products, setProducts, sales, setSales
                     <td className="table-cell">{sale.quantity}</td>
                     <td className="table-cell">${sale.total?.toFixed(2) || '0.00'}</td>
                     <td className="table-cell">
-                      {new Date(sale.date).toLocaleString()}
+                      {new Date(sale.date).toLocaleTimeString()}
                     </td>
                   </tr>
                 );
               })}
+              {todaySales.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="table-cell text-center text-gray-500">
+                    No hay ventas registradas hoy
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

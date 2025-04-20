@@ -116,11 +116,19 @@ export default function ProductManagement({ products, setProducts }: ProductMana
     }
   };
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.price.toString().includes(searchTerm) ||
-    product.stock.toString().includes(searchTerm)
-  );
+  const filteredProducts = products
+    .filter(product =>
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.price.toString().includes(searchTerm) ||
+      product.stock.toString().includes(searchTerm)
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const getStockColor = (stock: number) => {
+    if (stock < 0) return 'text-red-600 font-medium';
+    if (stock === 0) return 'text-orange-500 font-medium';
+    return 'text-gray-900';
+  };
 
   return (
     <div className="space-y-6">
@@ -239,7 +247,16 @@ export default function ProductManagement({ products, setProducts }: ProductMana
                         min="0"
                       />
                     ) : (
-                      <span className="text-gray-900">{product.stock}</span>
+                      <div className="flex items-center">
+                        <span className={getStockColor(product.stock)}>
+                          {product.stock}
+                          {product.stock <= 0 && (
+                            <span className="ml-2 text-xs">
+                              {product.stock === 0 ? '(Sin stock)' : '(Stock negativo)'}
+                            </span>
+                          )}
+                        </span>
+                      </div>
                     )}
                   </td>
                   <td className="table-cell px-6 py-4 whitespace-nowrap">
