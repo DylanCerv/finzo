@@ -12,6 +12,10 @@ interface Product {
   }[];
 }
 
+interface EditingProduct extends Omit<Product, 'price'> {
+  price: number | string;
+}
+
 interface ProductManagementProps {
   products: Product[];
   setProducts: (products: Product[]) => void;
@@ -23,15 +27,16 @@ export default function ProductManagement({ products, setProducts }: ProductMana
     price: '',
     stock: ''
   });
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<EditingProduct | null>(null);
   const [showHistory, setShowHistory] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     const product: Product = {
       id: Date.now(),
       name: newProduct.name,
-      price: parseFloat(newProduct.price),
+      price: parseFloat(newProduct.price.replace(',', '.')),
       stock: parseInt(newProduct.stock),
       priceHistory: []
     };
@@ -43,40 +48,79 @@ export default function ProductManagement({ products, setProducts }: ProductMana
   };
 
   const handleEditProduct = async (product: Product) => {
-    setEditingProduct(product);
+    setEditingProduct({
+      ...product,
+      price: product.price.toString() // Convertir a string para edición
+    });
   };
 
   const handleSaveEdit = async () => {
     if (editingProduct) {
       const originalProduct = products.find(p => p.id === editingProduct.id);
-      if (originalProduct && originalProduct.price !== editingProduct.price) {
-        // Si el precio cambió, actualizar el historial
-        await dataService.updateProductPrice(editingProduct.id, editingProduct.price);
-        const updatedProducts = await dataService.getProducts();
-        setProducts(updatedProducts);
-      } else {
-        // Si solo cambió el nombre o stock
+      if (!originalProduct) return;
+
+      try {
+        // Crear el producto actualizado con tipos correctos
+        const updatedProduct = {
+          ...editingProduct,
+          name: editingProduct.name.trim(),
+          price: typeof editingProduct.price === 'string' 
+            ? parseFloat(editingProduct.price.replace(',', '.'))
+            : editingProduct.price,
+          stock: typeof editingProduct.stock === 'string'
+            ? parseInt(editingProduct.stock)
+            : editingProduct.stock
+        };
+
+        // Si el precio cambió, primero actualizar el historial de precios
+        if (originalProduct.price !== updatedProduct.price) {
+          await dataService.updateProductPrice(updatedProduct.id, updatedProduct.price);
+        }
+
+        // Luego actualizar todos los campos del producto
         const updatedProducts = products.map(p => 
-          p.id === editingProduct.id ? editingProduct : p
+          p.id === updatedProduct.id 
+            ? {
+                ...updatedProduct,
+                price: updatedProduct.price,
+                priceHistory: p.priceHistory // Mantener el historial de precios actualizado
+              }
+            : p
         );
-        setProducts(updatedProducts);
+
+        // Guardar todos los cambios
         await dataService.saveProducts(updatedProducts);
+        setProducts(updatedProducts);
+        setEditingProduct(null);
+
+      } catch (error) {
+        console.error('Error al guardar los cambios:', error);
+        alert('Hubo un error al guardar los cambios');
       }
-      setEditingProduct(null);
     }
   };
 
-  const handleUpdatePrice = async (productId: number, newPrice: number) => {
-    await dataService.updateProductPrice(productId, newPrice);
-    const updatedProducts = await dataService.getProducts();
-    setProducts(updatedProducts);
+  const handlePriceChange = (value: string) => {
+    if (editingProduct) {
+      // Permitir solo números, punto y coma
+      const sanitizedValue = value.replace(/[^\d.,]/g, '');
+      // Reemplazar coma por punto si existe
+      const normalizedValue = sanitizedValue.replace(',', '.');
+      // Validar que sea un número válido
+      if (!isNaN(parseFloat(normalizedValue)) || sanitizedValue === '' || sanitizedValue === '.') {
+        setEditingProduct({ 
+          ...editingProduct, 
+          price: sanitizedValue
+        });
+      }
+    }
   };
 
-  const handleUpdateStock = async (productId: number, newStock: number) => {
-    await dataService.updateProductStock(productId, newStock);
-    const updatedProducts = await dataService.getProducts();
-    setProducts(updatedProducts);
-  };
+  const filteredProducts = products.filter(product =>
+    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.price.toString().includes(searchTerm) ||
+    product.stock.toString().includes(searchTerm)
+  );
 
   return (
     <div className="space-y-6">
@@ -94,13 +138,17 @@ export default function ProductManagement({ products, setProducts }: ProductMana
         <div>
           <label className="form-label">Precio</label>
           <input
-            type="number"
+            type="text"
             value={newProduct.price}
-            onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+            onChange={(e) => {
+              const value = e.target.value.replace(/[^\d.,]/g, '');
+              if (!isNaN(parseFloat(value.replace(',', '.'))) || value === '' || value === '.') {
+                setNewProduct({ ...newProduct, price: value });
+              }
+            }}
             className="input-field"
             required
-            min="0"
-            step="0.01"
+            placeholder="0.00"
           />
         </div>
         <div>
@@ -123,45 +171,55 @@ export default function ProductManagement({ products, setProducts }: ProductMana
       </form>
 
       <div className="mt-8">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Lista de Productos</h3>
-        <div className="table-container">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Lista de Productos</h3>
+          <div className="w-72">
+            <input
+              type="text"
+              placeholder="Buscar productos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input-field"
+            />
+          </div>
+        </div>
+        <div className="table-container overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="table-header">Nombre</th>
-                <th className="table-header">Precio</th>
-                <th className="table-header">Stock</th>
-                <th className="table-header">Acciones</th>
+                <th className="table-header px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                <th className="table-header px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio</th>
+                <th className="table-header px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                <th className="table-header px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {products.map((product) => (
-                <tr key={product.id}>
-                  <td className="table-cell">
+              {filteredProducts.map((product) => (
+                <tr key={product.id} className="hover:bg-gray-50">
+                  <td className="table-cell px-6 py-4 whitespace-nowrap">
                     {editingProduct?.id === product.id ? (
                       <input
                         type="text"
                         value={editingProduct.name}
                         onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                        className="input-field"
+                        className="input-field w-full"
                       />
                     ) : (
-                      product.name
+                      <span className="text-gray-900">{product.name}</span>
                     )}
                   </td>
-                  <td className="table-cell">
+                  <td className="table-cell px-6 py-4 whitespace-nowrap">
                     {editingProduct?.id === product.id ? (
                       <input
-                        type="number"
+                        type="text"
                         value={editingProduct.price}
-                        onChange={(e) => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) })}
-                        className="input-field"
-                        min="0"
-                        step="0.01"
+                        onChange={(e) => handlePriceChange(e.target.value)}
+                        className="input-field w-full"
+                        placeholder="0.00"
                       />
                     ) : (
                       <div className="flex items-center space-x-2">
-                        ${product.price.toFixed(2)}
+                        <span className="text-gray-900">${product.price.toFixed(2)}</span>
                         <button
                           onClick={() => setShowHistory(product.id)}
                           className="text-sm text-[var(--primary-green)] hover:text-[var(--primary-dark)]"
@@ -171,20 +229,20 @@ export default function ProductManagement({ products, setProducts }: ProductMana
                       </div>
                     )}
                   </td>
-                  <td className="table-cell">
+                  <td className="table-cell px-6 py-4 whitespace-nowrap">
                     {editingProduct?.id === product.id ? (
                       <input
                         type="number"
                         value={editingProduct.stock}
                         onChange={(e) => setEditingProduct({ ...editingProduct, stock: parseInt(e.target.value) })}
-                        className="input-field"
+                        className="input-field w-full"
                         min="0"
                       />
                     ) : (
-                      product.stock
+                      <span className="text-gray-900">{product.stock}</span>
                     )}
                   </td>
-                  <td className="table-cell">
+                  <td className="table-cell px-6 py-4 whitespace-nowrap">
                     {editingProduct?.id === product.id ? (
                       <button
                         onClick={handleSaveEdit}
@@ -206,32 +264,35 @@ export default function ProductManagement({ products, setProducts }: ProductMana
             </tbody>
           </table>
         </div>
-
-        {/* Price History Modal */}
-        {showHistory !== null && (
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center">
-            <div className="bg-white rounded-lg p-6 max-w-lg w-full">
-              <h3 className="text-lg font-medium mb-4">Historial de Precios</h3>
-              <div className="space-y-2">
-                {products.find(p => p.id === showHistory)?.priceHistory?.map((history, index) => (
-                  <div key={index} className="flex justify-between items-center">
-                    <span>${history.price.toFixed(2)}</span>
-                    <span className="text-gray-500 text-sm">
-                      {new Date(history.date).toLocaleString()}
-                    </span>
-                  </div>
-                ))}
-              </div>
+      </div>
+      {/* Price History Modal */}
+      {showHistory !== null && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center h-full overflow-y-auto !m-0">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full my-8 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium">Historial de Precios</h3>
               <button
                 onClick={() => setShowHistory(null)}
-                className="mt-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+                className="text-gray-500 hover:text-gray-700"
               >
-                Cerrar
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+              {products.find(p => p.id === showHistory)?.priceHistory?.map((history, index) => (
+                <div key={index} className="flex justify-between items-center p-2 hover:bg-gray-50 rounded">
+                  <span className="font-medium">${history.price.toFixed(2)}</span>
+                  <span className="text-gray-500 text-sm">
+                    {new Date(history.date).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 } 

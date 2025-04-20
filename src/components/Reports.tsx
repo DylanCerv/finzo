@@ -66,13 +66,16 @@ export default function Reports({ products, sales }: ReportsProps) {
 
     // Agrupar ventas por fecha
     filteredSales.forEach(sale => {
+      if (!sale) return; // Skip if sale is undefined
+      
       const dateKey = formatDate(sale.date);
+      if (!dateKey) return; // Skip if date is invalid
 
       const saleItem = {
-        name: sale.productName,
-        quantity: sale.quantity,
-        unitPrice: sale.unitPrice,
-        total: sale.total,
+        name: sale.productName || 'Unknown Product',
+        quantity: sale.quantity || 0,
+        unitPrice: sale.unitPrice || 0,
+        total: sale.total || 0,
         date: sale.date
       };
 
@@ -84,6 +87,8 @@ export default function Reports({ products, sales }: ReportsProps) {
 
     // Ordenar cada grupo alfabéticamente
     groupedSales.forEach((sales, date) => {
+      if (!sales) return; // Skip if sales array is undefined
+      
       sales.sort((a, b) => {
         // Primero ordenar por nombre
         const nameCompare = a.name.localeCompare(b.name);
@@ -93,8 +98,9 @@ export default function Reports({ products, sales }: ReportsProps) {
       });
     });
 
-    // Convertir el Map a un array ordenado por fecha
+    // Convertir el Map a un array ordenado por fecha y asegurar que no haya valores undefined
     return Array.from(groupedSales.entries())
+      .filter(([_, sales]) => sales && sales.length > 0 && sales[0]?.date) // Ensure we have valid sales data
       .sort((a, b) => {
         const dateA = new Date(a[1][0].date);
         const dateB = new Date(b[1][0].date);
@@ -104,7 +110,10 @@ export default function Reports({ products, sales }: ReportsProps) {
 
   const calculateTotalSales = () => {
     const filteredSales = getFilteredSales();
-    return filteredSales.reduce((total, sale) => total + sale.total, 0);
+    return filteredSales.reduce((total, sale) => {
+      if (!sale || typeof sale.total !== 'number') return total;
+      return total + sale.total;
+    }, 0);
   };
 
   return (
@@ -171,9 +180,9 @@ export default function Reports({ products, sales }: ReportsProps) {
                         </td>
                       )}
                       <td className="table-cell">{sale.name}</td>
-                      <td className="table-cell">${sale.unitPrice.toFixed(2)}</td>
+                      <td className="table-cell">${(sale.unitPrice || 0).toFixed(2)}</td>
                       <td className="table-cell">{sale.quantity}</td>
-                      <td className="table-cell">${sale.total.toFixed(2)}</td>
+                      <td className="table-cell">${(sale.total || 0).toFixed(2)}</td>
                     </tr>
                   ))
                 ))}

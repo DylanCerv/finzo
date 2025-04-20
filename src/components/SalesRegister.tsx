@@ -26,6 +26,7 @@ export default function SalesRegister() {
   const [quantity, setQuantity] = useState<string>('');
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [totalAmount, setTotalAmount] = useState<number>(0);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     loadProducts();
@@ -36,16 +37,16 @@ export default function SalesRegister() {
     setProducts(productList);
   };
 
+  const filteredProducts = products.filter(product =>
+    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.price.toString().includes(searchTerm)
+  );
+
   const handleAddItem = () => {
     if (!selectedProduct || !quantity || parseInt(quantity) <= 0) return;
 
     const product = products.find(p => p.id === parseInt(selectedProduct));
     if (!product) return;
-
-    if (parseInt(quantity) > product.stock) {
-      alert('No hay suficiente stock disponible');
-      return;
-    }
 
     const newItem: SaleItem = {
       productId: product.id,
@@ -105,8 +106,6 @@ export default function SalesRegister() {
       setTotalAmount(0);
       setSelectedProduct('');
       setQuantity('');
-      
-      alert('Venta registrada exitosamente');
       loadProducts(); // Reload products to update stock
     } catch (error) {
       console.error('Error al guardar la venta:', error);
@@ -118,23 +117,32 @@ export default function SalesRegister() {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold mb-4">Registro de Ventas</h2>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Producto</label>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700">Buscar Producto</label>
+          <input
+            type="text"
+            placeholder="Buscar por nombre o precio..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700">Seleccionar Producto</label>
           <select
             value={selectedProduct}
             onChange={(e) => setSelectedProduct(e.target.value)}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
           >
             <option value="">Seleccionar producto</option>
-            {products.map(product => (
+            {filteredProducts.map(product => (
               <option key={product.id} value={product.id}>
                 {product.name} - ${product.price} (Stock: {product.stock})
               </option>
             ))}
           </select>
         </div>
-
         <div>
           <label className="block text-sm font-medium text-gray-700">Cantidad</label>
           <input
@@ -145,7 +153,6 @@ export default function SalesRegister() {
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
           />
         </div>
-
         <div className="flex items-end">
           <button
             onClick={handleAddItem}

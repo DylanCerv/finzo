@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { dataService } from '../services/dataService';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { Sale } from '../types/Sale';

@@ -40,6 +40,12 @@ export default function SalesManagement({ products, setProducts, sales, setSales
   const [quantity, setQuantity] = useState('');
   const [currentSaleItems, setCurrentSaleItems] = useState<SaleItem[]>([]);
   const [totalAmount, setTotalAmount] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredProducts = products.filter(product =>
+    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.price.toString().includes(searchTerm)
+  );
 
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,10 +53,7 @@ export default function SalesManagement({ products, setProducts, sales, setSales
     const saleQuantity = parseInt(quantity);
     
     const product = products.find(p => p.id === productId);
-    if (!product || product.stock < saleQuantity) {
-      alert('No hay suficiente stock disponible');
-      return;
-    }
+    if (!product) return;
 
     const newItem: SaleItem = {
       productId,
@@ -114,8 +117,6 @@ export default function SalesManagement({ products, setProducts, sales, setSales
       setTotalAmount(0);
       setSelectedProduct('');
       setQuantity('');
-      
-      alert('Venta registrada exitosamente');
     } catch (error) {
       console.error('Error al guardar la venta:', error);
       alert('Error al guardar la venta');
@@ -125,9 +126,19 @@ export default function SalesManagement({ products, setProducts, sales, setSales
   return (
     <div className="space-y-6">
       <form onSubmit={handleAddItem} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="form-label">Producto</label>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="md:col-span-2">
+            <label className="form-label">Buscar Producto</label>
+            <input
+              type="text"
+              placeholder="Buscar por nombre o precio..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input-field"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="form-label">Seleccionar Producto</label>
             <select
               value={selectedProduct}
               onChange={(e) => setSelectedProduct(e.target.value)}
@@ -135,7 +146,7 @@ export default function SalesManagement({ products, setProducts, sales, setSales
               required
             >
               <option value="">Seleccionar producto</option>
-              {products.map(product => (
+              {filteredProducts.map(product => (
                 <option key={product.id} value={product.id}>
                   {product.name} - ${product.price} (Stock: {product.stock})
                 </option>
