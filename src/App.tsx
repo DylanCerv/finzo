@@ -123,13 +123,13 @@ function App() {
                 onClick={handleImportData}
                 className="btn-secondary"
               >
-                Importar Excel
+                Importar
               </button>
               <button
                 onClick={handleExportData}
                 className="btn-primary"
               >
-                Exportar Excel
+                Exportar
               </button>
             </div>
           </div>

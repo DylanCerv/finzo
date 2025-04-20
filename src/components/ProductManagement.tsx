@@ -82,41 +82,41 @@ export default function ProductManagement({ products, setProducts }: ProductMana
     <div className="space-y-6">
       <form onSubmit={handleAddProduct} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Nombre del Producto</label>
+          <label className="form-label">Nombre del Producto</label>
           <input
             type="text"
             value={newProduct.name}
             onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className="input-field"
             required
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700">Precio</label>
+          <label className="form-label">Precio</label>
           <input
             type="number"
             value={newProduct.price}
             onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className="input-field"
             required
             min="0"
             step="0.01"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700">Stock</label>
+          <label className="form-label">Stock</label>
           <input
             type="number"
             value={newProduct.stock}
             onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value })}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className="input-field"
             required
             min="0"
           />
         </div>
         <button
           type="submit"
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          className="btn-primary w-full"
         >
           Agregar Producto
         </button>
@@ -124,38 +124,38 @@ export default function ProductManagement({ products, setProducts }: ProductMana
 
       <div className="mt-8">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Lista de Productos</h3>
-        <div className="overflow-x-auto">
+        <div className="table-container">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                <th className="table-header">Nombre</th>
+                <th className="table-header">Precio</th>
+                <th className="table-header">Stock</th>
+                <th className="table-header">Acciones</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {products.map((product) => (
                 <tr key={product.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="table-cell">
                     {editingProduct?.id === product.id ? (
                       <input
                         type="text"
                         value={editingProduct.name}
                         onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        className="input-field"
                       />
                     ) : (
                       product.name
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="table-cell">
                     {editingProduct?.id === product.id ? (
                       <input
                         type="number"
                         value={editingProduct.price}
                         onChange={(e) => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) })}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        className="input-field"
                         min="0"
                         step="0.01"
                       />
@@ -164,38 +164,38 @@ export default function ProductManagement({ products, setProducts }: ProductMana
                         ${product.price.toFixed(2)}
                         <button
                           onClick={() => setShowHistory(product.id)}
-                          className="text-blue-600 hover:text-blue-800 text-xs"
+                          className="text-sm text-[var(--primary-green)] hover:text-[var(--primary-dark)]"
                         >
                           Ver Historial
                         </button>
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="table-cell">
                     {editingProduct?.id === product.id ? (
                       <input
                         type="number"
                         value={editingProduct.stock}
                         onChange={(e) => setEditingProduct({ ...editingProduct, stock: parseInt(e.target.value) })}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        className="input-field"
                         min="0"
                       />
                     ) : (
                       product.stock
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="table-cell">
                     {editingProduct?.id === product.id ? (
                       <button
                         onClick={handleSaveEdit}
-                        className="text-green-600 hover:text-green-800"
+                        className="btn-primary"
                       >
                         Guardar
                       </button>
                     ) : (
                       <button
                         onClick={() => handleEditProduct(product)}
-                        className="text-blue-600 hover:text-blue-800"
+                        className="btn-secondary"
                       >
                         Editar
                       </button>

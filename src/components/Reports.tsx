@@ -1,21 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { Sale } from '../types/Sale';
 
 interface Product {
   id: number;
   name: string;
   price: number;
   stock: number;
-  priceHistory: {
-    price: number;
-    date: string;
-  }[];
-}
-
-interface Sale {
-  id: number;
-  productId: number;
-  quantity: number;
-  date: string;
 }
 
 interface ReportsProps {
@@ -45,85 +35,76 @@ export default function Reports({ products, sales }: ReportsProps) {
     });
   };
 
-  // Función para obtener el precio histórico de un producto en una fecha específica
-  const getHistoricalPrice = (product: Product, saleDate: string) => {
-    const saleDateTime = new Date(saleDate).getTime();
+  const formatDate = (dateStr: string) => {
+    const saleDate = new Date(dateStr);
     
-    // Si no hay historial de precios o está vacío, usar el precio actual
-    if (!product.priceHistory || product.priceHistory.length === 0) {
-      return product.price;
+    if (selectedPeriod === 'daily') {
+      // Para ventas diarias, mostrar solo la hora
+      return saleDate.toLocaleTimeString('es-ES', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } else {
+      // Para ventas semanales y generales, mostrar solo la fecha
+      return saleDate.toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
     }
+  };
 
-    // Ordenar el historial de precios por fecha, del más reciente al más antiguo
-    const sortedHistory = [...product.priceHistory].sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
+  const getGroupedProducts = () => {
+    const filteredSales = getFilteredSales();
+    const groupedSales = new Map<string, Array<{
+      name: string;
+      quantity: number;
+      unitPrice: number;
+      total: number;
+      date: string;
+    }>>();
 
-    // Encontrar el precio que estaba vigente en la fecha de la venta
-    for (const history of sortedHistory) {
-      if (new Date(history.date).getTime() <= saleDateTime) {
-        return history.price;
+    // Agrupar ventas por fecha
+    filteredSales.forEach(sale => {
+      const dateKey = formatDate(sale.date);
+
+      const saleItem = {
+        name: sale.productName,
+        quantity: sale.quantity,
+        unitPrice: sale.unitPrice,
+        total: sale.total,
+        date: sale.date
+      };
+
+      if (!groupedSales.has(dateKey)) {
+        groupedSales.set(dateKey, []);
       }
-    }
+      groupedSales.get(dateKey)?.push(saleItem);
+    });
 
-    // Si la venta es más antigua que todo el historial, usar el precio más antiguo
-    return sortedHistory[sortedHistory.length - 1].price;
+    // Ordenar cada grupo alfabéticamente
+    groupedSales.forEach((sales, date) => {
+      sales.sort((a, b) => {
+        // Primero ordenar por nombre
+        const nameCompare = a.name.localeCompare(b.name);
+        if (nameCompare !== 0) return nameCompare;
+        // Si los nombres son iguales, ordenar por precio
+        return b.unitPrice - a.unitPrice;
+      });
+    });
+
+    // Convertir el Map a un array ordenado por fecha
+    return Array.from(groupedSales.entries())
+      .sort((a, b) => {
+        const dateA = new Date(a[1][0].date);
+        const dateB = new Date(b[1][0].date);
+        return dateB.getTime() - dateA.getTime();
+      });
   };
 
   const calculateTotalSales = () => {
     const filteredSales = getFilteredSales();
-    return filteredSales.reduce((total, sale) => {
-      const product = products.find(p => p.id === sale.productId);
-      if (!product) return total;
-      
-      const historicalPrice = getHistoricalPrice(product, sale.date);
-      return total + (historicalPrice * sale.quantity);
-    }, 0);
-  };
-
-  const getTopProducts = () => {
-    const filteredSales = getFilteredSales();
-    const productSales = new Map<number, { 
-      quantity: number; 
-      revenue: number; 
-      lastSaleDate: string;
-      sales: { date: string; quantity: number; price: number }[];
-    }>();
-
-    filteredSales.forEach(sale => {
-      const product = products.find(p => p.id === sale.productId);
-      if (product) {
-        const historicalPrice = getHistoricalPrice(product, sale.date);
-        const current = productSales.get(sale.productId) || { 
-          quantity: 0, 
-          revenue: 0, 
-          lastSaleDate: sale.date,
-          sales: []
-        };
-
-        productSales.set(sale.productId, {
-          quantity: current.quantity + sale.quantity,
-          revenue: current.revenue + (historicalPrice * sale.quantity),
-          lastSaleDate: sale.date,
-          sales: [...current.sales, { 
-            date: sale.date, 
-            quantity: sale.quantity, 
-            price: historicalPrice 
-          }]
-        });
-      }
-    });
-
-    return Array.from(productSales.entries())
-      .map(([productId, stats]) => {
-        const product = products.find(p => p.id === productId);
-        return {
-          name: product?.name || 'Producto eliminado',
-          ...stats
-        };
-      })
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5);
+    return filteredSales.reduce((total, sale) => total + sale.total, 0);
   };
 
   return (
@@ -131,32 +112,26 @@ export default function Reports({ products, sales }: ReportsProps) {
       <div className="flex space-x-4">
         <button
           onClick={() => setSelectedPeriod('daily')}
-          className={`px-4 py-2 rounded ${
-            selectedPeriod === 'daily' ? 'bg-blue-600 text-white' : 'bg-gray-200'
-          }`}
+          className={selectedPeriod === 'daily' ? 'btn-primary' : 'btn-secondary'}
         >
           Ventas Diarias
         </button>
         <button
           onClick={() => setSelectedPeriod('weekly')}
-          className={`px-4 py-2 rounded ${
-            selectedPeriod === 'weekly' ? 'bg-blue-600 text-white' : 'bg-gray-200'
-          }`}
+          className={selectedPeriod === 'weekly' ? 'btn-primary' : 'btn-secondary'}
         >
           Ventas Semanales
         </button>
         <button
           onClick={() => setSelectedPeriod('general')}
-          className={`px-4 py-2 rounded ${
-            selectedPeriod === 'general' ? 'bg-blue-600 text-white' : 'bg-gray-200'
-          }`}
+          className={selectedPeriod === 'general' ? 'btn-primary' : 'btn-secondary'}
         >
           Ventas Generales
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow">
+      <div className="grid grid-cols-1 gap-6">
+        <div className="card">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Resumen de Ventas</h3>
           <div className="space-y-2">
             <p className="text-gray-600">
@@ -168,32 +143,39 @@ export default function Reports({ products, sales }: ReportsProps) {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow">
+        <div className="card">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Productos Vendidos</h3>
-          <div className="overflow-x-auto">
+          <div className="table-container">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio Histórico</th>
+                  {selectedPeriod !== 'daily' && (
+                    <th className="table-header">Fecha</th>
+                  )}
+                  {selectedPeriod === 'daily' && (
+                    <th className="table-header">Hora</th>
+                  )}
+                  <th className="table-header">Producto</th>
+                  <th className="table-header">Precio Unit.</th>
+                  <th className="table-header">Cantidad</th>
+                  <th className="table-header">Total</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {getTopProducts().map((product, index) => (
-                  <tr key={index}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{product.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{product.quantity}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${product.revenue.toFixed(2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(product.lastSaleDate).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ${product.sales[product.sales.length - 1].price.toFixed(2)}
-                    </td>
-                  </tr>
+                {getGroupedProducts().map(([date, sales]) => (
+                  sales.map((sale, index) => (
+                    <tr key={`${date}-${index}`} className="hover:bg-gray-50">
+                      {index === 0 && (
+                        <td rowSpan={sales.length} className="table-cell border-r font-medium">
+                          {date}
+                        </td>
+                      )}
+                      <td className="table-cell">{sale.name}</td>
+                      <td className="table-cell">${sale.unitPrice.toFixed(2)}</td>
+                      <td className="table-cell">{sale.quantity}</td>
+                      <td className="table-cell">${sale.total.toFixed(2)}</td>
+                    </tr>
+                  ))
                 ))}
               </tbody>
             </table>

@@ -6,12 +6,25 @@ interface Product {
   name: string;
   price: number;
   stock: number;
+  priceHistory: {
+    price: number;
+    date: string;
+  }[];
+}
+
+interface SaleItem {
+  productId: number;
+  quantity: number;
+  price: number;
+  total: number;
 }
 
 interface Sale {
   id: number;
   productId: number;
+  productName: string;
   quantity: number;
+  total: number;
   date: string;
 }
 
@@ -25,8 +38,10 @@ interface SalesManagementProps {
 export default function SalesManagement({ products, setProducts, sales, setSales }: SalesManagementProps) {
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [currentSaleItems, setCurrentSaleItems] = useState<SaleItem[]>([]);
+  const [totalAmount, setTotalAmount] = useState(0);
 
-  const handleAddSale = async (e: React.FormEvent) => {
+  const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
     const productId = parseInt(selectedProduct);
     const saleQuantity = parseInt(quantity);
@@ -37,79 +52,188 @@ export default function SalesManagement({ products, setProducts, sales, setSales
       return;
     }
 
-    const sale: Sale = {
-      id: Date.now(),
+    const newItem: SaleItem = {
       productId,
       quantity: saleQuantity,
-      date: new Date().toISOString()
+      price: product.price,
+      total: product.price * saleQuantity
     };
 
-    // Update product stock
-    const updatedProducts = products.map(p => 
-      p.id === productId ? { ...p, stock: p.stock - saleQuantity } : p
-    );
-
-    const updatedSales = [...sales, sale];
-
-    // Save both products and sales
-    await Promise.all([
-      dataService.saveProducts(updatedProducts),
-      dataService.saveSales(updatedSales)
-    ]);
-
-    setProducts(updatedProducts);
-    setSales(updatedSales);
+    setCurrentSaleItems([...currentSaleItems, newItem]);
+    setTotalAmount(prev => prev + newItem.total);
     setSelectedProduct('');
     setQuantity('');
   };
 
+  const handleRemoveItem = (index: number) => {
+    const removedItem = currentSaleItems[index];
+    setCurrentSaleItems(currentSaleItems.filter((_, i) => i !== index));
+    setTotalAmount(prev => prev - removedItem.total);
+  };
+
+  const handleSaveTransaction = async () => {
+    if (currentSaleItems.length === 0) return;
+
+    try {
+      // Create new sales records
+      const newSales = currentSaleItems.map(item => {
+        const product = products.find(p => p.id === item.productId);
+        return {
+          id: Date.now() + Math.random(), // Ensure unique ID
+          productId: item.productId,
+          productName: product?.name || 'Producto eliminado',
+          quantity: item.quantity,
+          unitPrice: item.price, // Guardamos el precio unitario
+          total: item.total,
+          date: new Date().toISOString()
+        };
+      });
+
+      // Update product stock
+      const updatedProducts = products.map(product => {
+        const saleItem = currentSaleItems.find(item => item.productId === product.id);
+        if (saleItem) {
+          return {
+            ...product,
+            stock: product.stock - saleItem.quantity
+          };
+        }
+        return product;
+      });
+
+      // Save everything
+      await dataService.saveProducts(updatedProducts);
+      await dataService.saveSales([...sales, ...newSales]);
+
+      // Update state
+      setProducts(updatedProducts);
+      setSales([...sales, ...newSales]);
+
+      // Reset form
+      setCurrentSaleItems([]);
+      setTotalAmount(0);
+      setSelectedProduct('');
+      setQuantity('');
+      
+      alert('Venta registrada exitosamente');
+    } catch (error) {
+      console.error('Error al guardar la venta:', error);
+      alert('Error al guardar la venta');
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <form onSubmit={handleAddSale} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Producto</label>
-          <select
-            value={selectedProduct}
-            onChange={(e) => setSelectedProduct(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            required
-          >
-            <option value="">Seleccionar producto</option>
-            {products.map(product => (
-              <option key={product.id} value={product.id}>
-                {product.name} - Stock: {product.stock}
-              </option>
-            ))}
-          </select>
+      <form onSubmit={handleAddItem} className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="form-label">Producto</label>
+            <select
+              value={selectedProduct}
+              onChange={(e) => setSelectedProduct(e.target.value)}
+              className="select-field"
+              required
+            >
+              <option value="">Seleccionar producto</option>
+              {products.map(product => (
+                <option key={product.id} value={product.id}>
+                  {product.name} - ${product.price} (Stock: {product.stock})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Cantidad</label>
+            <input
+              type="number"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="input-field"
+              required
+              min="1"
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              type="submit"
+              className="btn-primary w-full"
+            >
+              Agregar
+            </button>
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Cantidad</label>
-          <input
-            type="number"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            required
-            min="1"
-          />
-        </div>
-        <button
-          type="submit"
-          className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-        >
-          Registrar Venta
-        </button>
       </form>
+
+      {currentSaleItems.length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-lg font-medium mb-4">Detalle de la Venta</h3>
+          <div className="table-container">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="table-header">Producto</th>
+                  <th className="table-header">Cantidad</th>
+                  <th className="table-header">Precio Unit.</th>
+                  <th className="table-header">Total</th>
+                  <th className="table-header">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {currentSaleItems.map((item, index) => {
+                  const product = products.find(p => p.id === item.productId);
+                  return (
+                    <tr key={index}>
+                      <td className="table-cell">
+                        {product?.name || 'Producto eliminado'}
+                      </td>
+                      <td className="table-cell">{item.quantity}</td>
+                      <td className="table-cell">${item.price.toFixed(2)}</td>
+                      <td className="table-cell">${item.total.toFixed(2)}</td>
+                      <td className="table-cell">
+                        <button
+                          onClick={() => handleRemoveItem(index)}
+                          className="btn-danger"
+                        >
+                          Eliminar
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="bg-gray-50">
+                <tr>
+                  <td colSpan={3} className="px-6 py-4 text-right font-medium">Total a Pagar:</td>
+                  <td className="table-cell font-bold text-lg">
+                    ${totalAmount.toFixed(2)}
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={handleSaveTransaction}
+              className="btn-primary"
+            >
+              Guardar Registro
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="mt-8">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Ventas Recientes</h3>
-        <div className="overflow-x-auto">
+        <div className="table-container">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                <th className="table-header">Producto</th>
+                <th className="table-header">Cantidad</th>
+                <th className="table-header">Total</th>
+                <th className="table-header">Fecha</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -117,11 +241,12 @@ export default function SalesManagement({ products, setProducts, sales, setSales
                 const product = products.find(p => p.id === sale.productId);
                 return (
                   <tr key={sale.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="table-cell">
                       {product?.name || 'Producto eliminado'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{sale.quantity}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="table-cell">{sale.quantity}</td>
+                    <td className="table-cell">${sale.total?.toFixed(2) || '0.00'}</td>
+                    <td className="table-cell">
                       {new Date(sale.date).toLocaleString()}
                     </td>
                   </tr>
