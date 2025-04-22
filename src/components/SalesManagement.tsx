@@ -41,6 +41,7 @@ export default function SalesManagement({ products, setProducts, sales, setSales
   const [currentSaleItems, setCurrentSaleItems] = useState<SaleItem[]>([]);
   const [totalAmount, setTotalAmount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -58,6 +59,27 @@ export default function SalesManagement({ products, setProducts, sales, setSales
 
   // Calcular total de ventas del día
   const todayTotal = todaySales.reduce((sum, sale) => sum + sale.total, 0);
+
+  // Agrupar ventas por producto
+  const groupedSales = todaySales.reduce((acc, sale) => {
+    const existingProduct = acc.find(item => item.productId === sale.productId);
+    
+    if (existingProduct) {
+      existingProduct.quantity += sale.quantity;
+      existingProduct.total += sale.total;
+    } else {
+      acc.push({...sale});
+    }
+    
+    return acc;
+  }, [] as Sale[]);
+
+  const calculateChange = (): number => {
+    if (!paymentAmount || paymentAmount === '') return 0;
+    const payment = parseFloat(paymentAmount);
+    // Siempre restar el total del pago
+    return payment - totalAmount;
+  };
 
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,6 +151,7 @@ export default function SalesManagement({ products, setProducts, sales, setSales
       setTotalAmount(0);
       setSelectedProduct('');
       setQuantity('');
+      setPaymentAmount('');
     } catch (error) {
       console.error('Error al guardar la venta:', error);
       alert('Error al guardar la venta');
@@ -232,6 +255,27 @@ export default function SalesManagement({ products, setProducts, sales, setSales
                   </td>
                   <td></td>
                 </tr>
+                <tr>
+                  <td colSpan={3} className="px-6 py-4 text-right font-medium">Dinero Recibido:</td>
+                  <td className="table-cell">
+                    <input
+                      type="number"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      className="input-field w-full"
+                      min="0"
+                      step="0.01"
+                    />
+                  </td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td colSpan={3} className="px-6 py-4 text-right font-medium">Vuelto:</td>
+                  <td className={`table-cell font-bold text-lg ${calculateChange() < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    ${calculateChange().toFixed(2)}
+                  </td>
+                  <td></td>
+                </tr>
               </tfoot>
             </table>
           </div>
@@ -261,11 +305,10 @@ export default function SalesManagement({ products, setProducts, sales, setSales
                 <th className="table-header">Producto</th>
                 <th className="table-header">Cantidad</th>
                 <th className="table-header">Total</th>
-                <th className="table-header">Hora</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {todaySales.slice().reverse().map((sale) => {
+              {groupedSales.map((sale) => {
                 const product = products.find(p => p.id === sale.productId);
                 return (
                   <tr key={sale.id}>
@@ -274,15 +317,12 @@ export default function SalesManagement({ products, setProducts, sales, setSales
                     </td>
                     <td className="table-cell">{sale.quantity}</td>
                     <td className="table-cell">${sale.total?.toFixed(2) || '0.00'}</td>
-                    <td className="table-cell">
-                      {new Date(sale.date).toLocaleTimeString()}
-                    </td>
                   </tr>
                 );
               })}
               {todaySales.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="table-cell text-center text-gray-500">
+                  <td colSpan={3} className="table-cell text-center text-gray-500">
                     No hay ventas registradas hoy
                   </td>
                 </tr>
