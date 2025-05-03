@@ -1,6 +1,48 @@
 import { useState, useEffect } from 'react';
 import { dataService } from '../services/dataService';
 
+// Componente Modal simple
+interface ModalProps {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  onClose: () => void;
+  onConfirm?: () => void;
+  showCancel?: boolean;
+}
+
+const Modal = ({ isOpen, title, message, onClose, onConfirm, showCancel = false }: ModalProps) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+        <h3 className="text-lg font-medium text-gray-900 mb-2">{title}</h3>
+        <p className="text-gray-600 mb-6">{message}</p>
+        <div className="flex justify-end space-x-2">
+          {showCancel && (
+            <button 
+              onClick={onClose}
+              className="btn-secondary text-sm py-1 px-4"
+            >
+              Cancelar
+            </button>
+          )}
+          <button 
+            onClick={() => {
+              if (onConfirm) onConfirm();
+              else onClose();
+            }}
+            className="btn-primary text-sm py-1 px-4"
+          >
+            {onConfirm ? 'Confirmar' : 'Aceptar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 interface Product {
   id: number;
   name: string;
@@ -26,6 +68,9 @@ interface Sale {
   quantity: number;
   total: number;
   date: string;
+  title?: string;
+  unitPrice?: number;
+  group_id?: string;
 }
 
 interface PendingSale {
@@ -38,10 +83,10 @@ interface PendingSale {
 }
 
 interface SalesManagementProps {
-  products: Product[];
+  products: any[];
   setProducts: (products: Product[]) => void;
-  sales: Sale[];
-  setSales: (sales: Sale[]) => void;
+  sales: any[];
+  setSales: (sales: any[]) => void;
 }
 
 // Función auxiliar para cargar pendientes del localStorage
@@ -69,6 +114,37 @@ export default function SalesManagement({ products, setProducts, sales, setSales
   const [pendingSales, setPendingSales] = useState<PendingSale[]>(loadPendingSalesFromStorage());
   const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'new' | 'pending'>('new');
+  
+  // Estado para el modal
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+    showCancel: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: undefined,
+    showCancel: false,
+  });
+
+  // Función para mostrar el modal
+  const showModal = (title: string, message: string, onConfirm?: () => void, showCancel = false) => {
+    setModalConfig({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+      showCancel,
+    });
+  };
+
+  // Función para cerrar el modal
+  const closeModal = () => {
+    setModalConfig({...modalConfig, isOpen: false});
+  };
 
   // Save pending sales to localStorage whenever they change
   useEffect(() => {
@@ -92,7 +168,7 @@ export default function SalesManagement({ products, setProducts, sales, setSales
   // Calcular total de ventas del día
   const todayTotal = todaySales.reduce((sum, sale) => sum + sale.total, 0);
 
-  // Agrupar ventas por hora
+  // Modificamos para agrupar ventas diarias por hora y mostrar título
   const salesByHour = todaySales.reduce((acc, sale) => {
     const saleDate = new Date(sale.date);
     const hourKey = `${saleDate.getHours().toString().padStart(2, '0')}:${saleDate.getMinutes().toString().padStart(2, '0')}`;
@@ -102,7 +178,7 @@ export default function SalesManagement({ products, setProducts, sales, setSales
     }
     
     // Verificar si el producto ya está en esta hora
-    const existingProductIndex = acc[hourKey].findIndex(item => item.productId === sale.productId);
+    const existingProductIndex = acc[hourKey].findIndex((item: any) => item.productId === sale.productId);
     
     if (existingProductIndex >= 0) {
       // Actualizar producto existente
@@ -118,6 +194,8 @@ export default function SalesManagement({ products, setProducts, sales, setSales
 
   // Ordenar las horas de forma descendente (más recientes primero)
   const sortedHours = Object.keys(salesByHour).sort((a, b) => b.localeCompare(a));
+
+  console.log(salesByHour);
 
   const calculateChange = (): number => {
     if (!paymentAmount || paymentAmount === '') return 0;
@@ -212,7 +290,9 @@ export default function SalesManagement({ products, setProducts, sales, setSales
           quantity: item.quantity,
           unitPrice: item.price, // Guardamos el precio unitario
           total: item.total,
-          date: new Date().toISOString()
+          date: new Date().toISOString(),
+          title: saleTitle, // Agregamos el título de la venta
+          group_id: editingSaleId || undefined // Usar undefined si no hay ID de pendiente
         };
       });
 
@@ -251,7 +331,7 @@ export default function SalesManagement({ products, setProducts, sales, setSales
       setEditingSaleId(null);
     } catch (error) {
       console.error('Error al guardar la venta:', error);
-      alert('Error al guardar la venta');
+      showModal('Error', 'Error al guardar la venta');
     }
   };
   
@@ -267,9 +347,15 @@ export default function SalesManagement({ products, setProducts, sales, setSales
   };
   
   const handleDeletePendingSale = (saleId: string) => {
-    if (window.confirm('¿Está seguro que desea eliminar este registro pendiente?')) {
-      setPendingSales(pendingSales.filter(sale => sale.id !== saleId));
-    }
+    showModal(
+      'Confirmar eliminación', 
+      '¿Está seguro que desea eliminar este registro pendiente?',
+      () => {
+        setPendingSales(pendingSales.filter(sale => sale.id !== saleId));
+        closeModal();
+      },
+      true
+    );
   };
   
   const handleCompletePendingSale = async (saleId: string) => {
@@ -287,7 +373,9 @@ export default function SalesManagement({ products, setProducts, sales, setSales
           quantity: item.quantity,
           unitPrice: item.price,
           total: item.total,
-          date: new Date().toISOString()
+          date: new Date().toISOString(),
+          title: saleToComplete.title, // Incluir el título de la venta pendiente
+          group_id: saleToComplete.id // Agregar ID de pendiente original
         };
       });
 
@@ -316,69 +404,77 @@ export default function SalesManagement({ products, setProducts, sales, setSales
       setPendingSales(pendingSales.filter(sale => sale.id !== saleId));
     } catch (error) {
       console.error('Error al completar la venta pendiente:', error);
-      alert('Error al completar la venta pendiente');
+      showModal('Error', 'Error al completar la venta pendiente');
     }
   };
 
   const handleCompleteAllPendingSales = async () => {
     if (pendingSales.length === 0) return;
     
-    if (window.confirm('¿Está seguro que desea completar todas las ventas pendientes?')) {
-      try {
-        let allNewSales: any[] = [];
-        let productQuantities: Record<number, number> = {};
-        
-        // Collect all items from pending sales
-        pendingSales.forEach(pendingSale => {
-          pendingSale.items.forEach(item => {
-            // Add to new sales
-            const product = products.find(p => p.id === item.productId);
-            allNewSales.push({
-              id: Date.now() + Math.random(), // Ensure unique ID
-              productId: item.productId,
-              productName: product?.name || 'Producto eliminado',
-              quantity: item.quantity,
-              unitPrice: item.price,
-              total: item.total,
-              date: new Date().toISOString()
+    showModal(
+      'Confirmar operación',
+      '¿Está seguro que desea completar todas las ventas pendientes?',
+      async () => {
+        try {
+          let allNewSales: any[] = [];
+          let productQuantities: Record<number, number> = {};
+          
+          // Collect all items from pending sales
+          pendingSales.forEach(pendingSale => {
+            pendingSale.items.forEach(item => {
+              // Add to new sales
+              const product = products.find(p => p.id === item.productId);
+              allNewSales.push({
+                id: Date.now() + Math.random(), // Ensure unique ID
+                productId: item.productId,
+                productName: product?.name || 'Producto eliminado',
+                quantity: item.quantity,
+                unitPrice: item.price,
+                total: item.total,
+                date: new Date().toISOString(),
+                title: pendingSale.title, // Incluir el título de la venta pendiente
+                group_id: pendingSale.id // Agregar ID de pendiente original
+              });
+              
+              // Track quantities for stock update
+              if (productQuantities[item.productId]) {
+                productQuantities[item.productId] += item.quantity;
+              } else {
+                productQuantities[item.productId] = item.quantity;
+              }
             });
-            
-            // Track quantities for stock update
-            if (productQuantities[item.productId]) {
-              productQuantities[item.productId] += item.quantity;
-            } else {
-              productQuantities[item.productId] = item.quantity;
-            }
           });
-        });
-        
-        // Update product stock
-        const updatedProducts = products.map(product => {
-          const quantity = productQuantities[product.id] || 0;
-          if (quantity > 0) {
-            return {
-              ...product,
-              stock: product.stock - quantity
-            };
-          }
-          return product;
-        });
-        
-        // Save everything
-        await dataService.saveProducts(updatedProducts);
-        await dataService.saveSales([...sales, ...allNewSales]);
-        
-        // Update state
-        setProducts(updatedProducts);
-        setSales([...sales, ...allNewSales]);
-        
-        // Clear all pending sales
-        setPendingSales([]);
-      } catch (error) {
-        console.error('Error al completar todas las ventas pendientes:', error);
-        alert('Error al completar todas las ventas pendientes');
-      }
-    }
+          
+          // Update product stock
+          const updatedProducts = products.map(product => {
+            const quantity = productQuantities[product.id] || 0;
+            if (quantity > 0) {
+              return {
+                ...product,
+                stock: product.stock - quantity
+              };
+            }
+            return product;
+          });
+          
+          // Save everything
+          await dataService.saveProducts(updatedProducts);
+          await dataService.saveSales([...sales, ...allNewSales]);
+          
+          // Update state
+          setProducts(updatedProducts);
+          setSales([...sales, ...allNewSales]);
+          
+          // Clear all pending sales
+          setPendingSales([]);
+          closeModal();
+        } catch (error) {
+          console.error('Error al completar todas las ventas pendientes:', error);
+          showModal('Error', 'Error al completar todas las ventas pendientes');
+        }
+      },
+      true
+    );
   };
 
   const formatTimeSince = (dateString: string): string => {
@@ -402,6 +498,16 @@ export default function SalesManagement({ products, setProducts, sales, setSales
 
   return (
     <div className="space-y-6">
+      {/* Modal component */}
+      <Modal 
+        isOpen={modalConfig.isOpen}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        onClose={closeModal}
+        onConfirm={modalConfig.onConfirm}
+        showCancel={modalConfig.showCancel}
+      />
+
       <div className="flex border-b">
         <button
           className={`py-3 px-6 font-medium ${activeTab === 'new' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
@@ -420,7 +526,7 @@ export default function SalesManagement({ products, setProducts, sales, setSales
       {activeTab === 'new' && (
         <>
           <div className="flex items-center mb-4">
-            <label className="form-label mr-4">Título del Registro:</label>
+            <label className="form-label mr-4">Título del Registro <span className="text-red-400">*</span></label>
             <input
               type="text"
               placeholder="Ej: Mesa 1, Cliente Juan, etc."
@@ -447,7 +553,7 @@ export default function SalesManagement({ products, setProducts, sales, setSales
 
           <form onSubmit={handleAddItem} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-2">
+              <div className="md:col-span-4">
                 <label className="form-label">Buscar Producto</label>
                 <input
                   type="text"
@@ -566,7 +672,7 @@ export default function SalesManagement({ products, setProducts, sales, setSales
               </div>
 
               {!saleTitle &&
-                <p className="text-red-400 ml-auto text-sm w-fit">Es necesario escribir un título para guardar la venta como pendiente</p>                
+                <p className="text-red-400 ml-auto text-sm w-fit">Es necesario escribir un título para guardar la venta</p>                
               }
               <div className="mt-6 flex justify-end space-x-4">
                 <button
@@ -685,64 +791,67 @@ export default function SalesManagement({ products, setProducts, sales, setSales
         </div>
       )}
 
-      <div className="mt-8">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-gray-900">Ventas del Día</h3>
-          <span className="text-lg font-bold text-gray-900">
-            Total del día: ${todayTotal.toFixed(2)}
-          </span>
+      {activeTab !== 'pending' && (
+        <div className="mt-8">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Ventas del Día</h3>
+            <span className="text-lg font-bold text-gray-900">
+              Total del día: ${todayTotal.toFixed(2)}
+            </span>
+          </div>
+          
+          {sortedHours.length > 0 ? (
+            <div className="space-y-6">
+              {sortedHours.map(hour => (
+                <div key={hour} className="bg-white shadow rounded-lg overflow-hidden">
+                  <div className="bg-gray-100 px-4 py-2 border-b">
+                    <h4 className="font-medium text-gray-700">Hora: {hour} - ({Array.from(new Set(salesByHour[hour].map((sale: any) => sale.title))).join(', ')})</h4>
+                  </div>
+                  
+                  <div className="table-container">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="table-header">Producto</th>
+                          
+                          <th className="table-header">Cantidad</th>
+                          <th className="table-header">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {salesByHour[hour].map((sale: any) => {
+                          const product = products.find(p => p.id === sale.productId);
+                          return (
+                            <tr key={`${hour}-${sale.productId}-${sale.id}`}>
+                              <td className="table-cell">
+                                {product?.name || 'Producto eliminado'}
+                              </td>
+                              <td className="table-cell">{sale.quantity}</td>
+                              <td className="table-cell">${sale.total?.toFixed(2) || '0.00'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="bg-gray-50">
+                        <tr>
+                          <td colSpan={2} className="px-6 py-2 text-right font-medium">Total:</td>
+                          <td className="table-cell font-bold">
+                            ${salesByHour[hour].reduce((sum: number, sale: any) => sum + sale.total, 0).toFixed(2)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-6 bg-white shadow rounded-lg">
+              <p className="text-gray-500">No hay ventas registradas hoy</p>
+            </div>
+          )}
         </div>
-        
-        {sortedHours.length > 0 ? (
-          <div className="space-y-6">
-            {sortedHours.map(hour => (
-              <div key={hour} className="bg-white shadow rounded-lg overflow-hidden">
-                <div className="bg-gray-100 px-4 py-2 border-b">
-                  <h4 className="font-medium text-gray-700">Hora: {hour}</h4>
-                </div>
-                
-                <div className="table-container">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="table-header">Producto</th>
-                        <th className="table-header">Cantidad</th>
-                        <th className="table-header">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {salesByHour[hour].map((sale) => {
-                        const product = products.find(p => p.id === sale.productId);
-                        return (
-                          <tr key={`${hour}-${sale.productId}`}>
-                            <td className="table-cell">
-                              {product?.name || 'Producto eliminado'}
-                            </td>
-                            <td className="table-cell">{sale.quantity}</td>
-                            <td className="table-cell">${sale.total?.toFixed(2) || '0.00'}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot className="bg-gray-50">
-                      <tr>
-                        <td colSpan={2} className="px-6 py-2 text-right font-medium">Total:</td>
-                        <td className="table-cell font-bold">
-                          ${salesByHour[hour].reduce((sum, sale) => sum + sale.total, 0).toFixed(2)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-6 bg-white shadow rounded-lg">
-            <p className="text-gray-500">No hay ventas registradas hoy</p>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 } 

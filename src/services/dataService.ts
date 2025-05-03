@@ -16,6 +16,9 @@ interface Sale {
   total: number;
   date: string;
   productName: string;
+  title?: string;
+  unitPrice?: number;
+  group_id?: string;
 }
 
 interface DataStore {
